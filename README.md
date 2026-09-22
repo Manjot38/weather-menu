@@ -1,0 +1,89 @@
+# Weather Menu — weather based food suggestions
+
+Pick a city, the page fetches its current weather from OpenWeatherMap, and the menu
+reorders itself: cold drinks and ice cream when it is hot, chai and pakora when it rains.
+
+Plain HTML, CSS and vanilla JS — no framework, no build step, no `node_modules` for the
+frontend. One Vercel serverless function (`api/weather.js`) exists purely so the
+OpenWeatherMap API key stays on the server.
+
+## Setting the API key
+
+The key is **never** in the frontend and is never committed — `.gitignore` covers `.env`.
+
+Local:
+
+```bash
+cp .env.example .env
+```
+
+Then open `.env` and put your key after the `=`:
+
+```
+OPENWEATHER_API_KEY=your_key_here
+```
+
+On Vercel, add the same variable under **Project → Settings → Environment Variables**
+instead of deploying a `.env` file.
+
+## Running it
+
+Because of the serverless route, `python -m http.server` is **not** enough here — it would
+serve `index.html` fine but return 404 for `/api/weather`, so the page would sit in its
+error state (with the full menu still working). Use the Vercel dev server, which serves the
+static files *and* the function, and loads `.env` automatically:
+
+```bash
+npx vercel dev
+```
+
+Then open the URL it prints (usually <http://localhost:3000>).
+
+Check the endpoint on its own:
+
+```bash
+curl "http://localhost:3000/api/weather?city=ludhiana"
+```
+
+## Files
+
+| File | What it does |
+| --- | --- |
+| `index.html` | Page shell: location selector → weather card → recommended grid → all products |
+| `assets/js/data.js` | `window.WM_DATA` — cities, categories, the 22 menu items, and the five weather rules |
+| `assets/js/app.js` | Populates the selector, fetches weather, picks a rule, ranks and renders |
+| `assets/css/main.css` | Design tokens, weather card, product card grid, loading/error states |
+| `api/weather.js` | `GET /api/weather?city=<slug>` — server side OpenWeatherMap proxy |
+
+## The rules
+
+`assets/js/data.js` holds them; each lists its categories strongest-match-first.
+
+| Weather | Recommended, in order | Demo deal |
+| --- | --- | --- |
+| Rain / Drizzle / Thunderstorm | Tea & coffee, fried snacks, soups | 10% off pakora |
+| ≥ 30 °C | Cold drinks, ice cream & shakes, juices | 10% off cold drinks |
+| 24–29 °C | Cold drinks, juices, light snacks | 10% off juices |
+| 15–23 °C | Tea & coffee, light snacks, noodles, soups | 10% off tea & coffee |
+| < 15 °C | Tea & coffee, soups, fried snacks | 10% off soups |
+
+Rain is matched on the weather condition and takes priority over the temperature bands.
+
+The discount is a **demo business rule** — it is applied at render time only. Prices in
+`data.js` are never modified and there is no order or checkout flow here.
+
+To change the menu, edit the `products` array in `assets/js/data.js`; every item's
+`category` must be one of the slugs in `categories`.
+
+To add a city, add it to `WM_DATA.cities` **and** to the `CITIES` map in `api/weather.js`
+(which holds the coordinates). The endpoint only accepts slugs it knows, so an unlisted
+slug returns a 400 rather than spending API quota on arbitrary coordinates.
+
+## Behaviour when the weather fails
+
+By design the product list never depends on the API. On any failure — no key, bad key,
+unknown city, timeout, offline — the weather card shows the reason with a **Try again**
+button and the full menu renders in its normal order.
+
+Successful lookups are cached in `sessionStorage` for 10 minutes per city, so switching
+back and forth is instant and stays well inside the free API tier.

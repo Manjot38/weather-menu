@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chaupal Cafe — Weather Based Suggestions</title>
+  <meta name="description" content="Pick a city and the menu reorders itself to suit the weather — cold drinks when it is hot, chai and pakora when it rains." />
+  <link rel="stylesheet" href="/assets/css/main.css" />
+</head>
+<body>
+
+  <header class="head">
+    <div class="wrap head__in">
+      <p class="head__brand">Chaupal Cafe</p>
+      <p class="head__tag">Served to suit the sky</p>
+    </div>
+  </header>
+
+  <main class="wrap main">
+
+    <!-- 1. Location selector -->
+    <section class="picker" aria-labelledby="pickerTitle">
+      <h1 class="picker__title" id="pickerTitle">Weather Based Suggestions</h1>
+      <p class="picker__lede">Choose your location — we check the current weather and put the right things first.</p>
+      <label class="picker__field" for="citySelect">
+        <span class="picker__label">State &amp; City</span>
+        <select id="citySelect" class="select">
+          <option value="">Select a city…</option>
+        </select>
+      </label>
+    </section>
+
+    <!-- 2. Weather card -->
+    <section class="weather" id="weatherCard" aria-live="polite">
+      <p class="weather__icon" id="wcIcon">📍</p>
+      <div class="weather__body">
+        <p class="weather__city" id="wcCity">No city selected</p>
+        <p class="weather__temp" id="wcTemp">—</p>
+        <p class="weather__cond" id="wcCond">Pick a city to see the weather</p>
+      </div>
+      <div class="weather__side">
+        <p class="weather__note" id="wcNote">Choose a location above for weather based suggestions.</p>
+        <button type="button" class="btn btn--ghost" id="wcRetry" hidden>Try again</button>
+      </div>
+    </section>
+
+    <!-- 3. Recommended for this weather -->
+    <section class="sec" id="recSection" hidden>
+      <div class="sec__head">
+        <h2 class="sec__title" id="recTitle">Recommended for this Weather</h2>
+        <p class="deal" id="recDeal" hidden></p>
+      </div>
+      <div class="grid" id="recGrid"></div>
+    </section>
+
+    <!-- 4. Everything else -->
+    <section class="sec">
+      <div class="sec__head">
+        <h2 class="sec__title" id="allTitle">All Products</h2>
+      </div>
+      <div class="grid" id="allGrid"></div>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <p>Weather by OpenWeatherMap. Discounts shown are a demo business rule, not a live offer.</p>
+    </div>
+  </footer>
+
+  <script src="/assets/js/data.js"></script>
+  <script src="/assets/js/app.js"></script>
+</body>
+</html>
