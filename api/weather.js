@@ -1,29 +1,47 @@
 /* ==========================================================================
-   GET /api/weather?city=<slug>
+   GET /api/weather?city=<name>
    --------------------------------------------------------------------------
-   Server side proxy for the OpenWeatherMap Current Weather API. The API key
-   lives only in process.env.OPENWEATHER_API_KEY and is never sent to the
-   browser — the response below is a narrow projection, not the raw payload.
+   Server side proxy for OpenWeatherMap. The API key lives only in
+   process.env.OPENWEATHER_API_KEY and is never sent to the browser — the
+   response below is a narrow projection, not the raw payload.
 
-   Only the slugs in CITIES are accepted. That keeps this from becoming an
-   open proxy that anyone could point at arbitrary coordinates using our key,
-   and gives us the "invalid city" error path for free.
+   Any city name is accepted. It is resolved with OpenWeatherMap's Geocoding
+   API (no hardcoded coordinate map), then the current weather is fetched for
+   the coordinates that comes back. A name that resolves to nothing is a 404
+   so the page can say "we could not find that city".
    ========================================================================== */
 
+const GEO_URL = 'https://api.openweathermap.org/geo/1.0/direct';
 const OWM_URL = 'https://api.openweathermap.org/data/2.5/weather';
 const TIMEOUT_MS = 6000;
 
-/* Keep these slugs in sync with WM_DATA.cities in assets/js/data.js. */
-const CITIES = {
-  ludhiana:   { name: 'Ludhiana',   state: 'Punjab',            lat: 30.901,  lon: 75.8573 },
-  amritsar:   { name: 'Amritsar',   state: 'Punjab',            lat: 31.634,  lon: 74.8723 },
-  chandigarh: { name: 'Chandigarh', state: 'Chandigarh',        lat: 30.7333, lon: 76.7794 },
-  delhi:      { name: 'Delhi',      state: 'Delhi',             lat: 28.6139, lon: 77.209 },
-  mumbai:     { name: 'Mumbai',     state: 'Maharashtra',       lat: 19.076,  lon: 72.8777 },
-  bengaluru:  { name: 'Bengaluru',  state: 'Karnataka',         lat: 12.9716, lon: 77.5946 },
-  jaipur:     { name: 'Jaipur',     state: 'Rajasthan',         lat: 26.9124, lon: 75.7873 },
-  shimla:     { name: 'Shimla',     state: 'Himachal Pradesh',  lat: 31.1048, lon: 77.1734 },
-};
+const MIN_LEN = 2;
+const MAX_LEN = 60;
+
+/* Letters (any script), marks, spaces and the punctuation that turns up in
+   real place names — "Thiruvananthapuram", "Y S R District", "Delhi, IN".
+   Everything else is rejected before the key is ever used. */
+const CITY_RE = /^[\p{L}\p{M}][\p{L}\p{M}\s'.,()-]*$/u;
+
+function cleanCity(raw) {
+  if (typeof raw !== 'string') return null;
+  var city = raw.replace(/\s+/g, ' ').trim();
+  if (city.length < MIN_LEN || city.length > MAX_LEN) return null;
+  if (!CITY_RE.test(city)) return null;
+  return city;
+}
+
+async function getJSON(url, signal) {
+  const res = await fetch(url, { signal: signal });
+  if (!res.ok) {
+    const detail = await res.text().catch(function () { return ''; });
+    const err = new Error('upstream ' + res.status);
+    err.status = res.status;
+    err.detail = detail;
+    throw err;
+  }
+  return res.json();
+}
 
 module.exports = async (req, res) => {
   if (req.method !== 'GET') {
@@ -37,34 +55,41 @@ module.exports = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Weather is not configured on the server.' });
   }
 
-  const slug = typeof req.query.city === 'string' ? req.query.city.trim().toLowerCase() : '';
-  const city = CITIES[slug];
+  const city = cleanCity(req.query.city);
   if (!city) {
-    return res.status(400).json({ success: false, message: 'Unknown city. Pick one from the list.' });
+    return res.status(400).json({ success: false, message: 'Enter a city name (2–60 letters).' });
   }
-
-  const url = OWM_URL
-    + '?lat=' + encodeURIComponent(city.lat)
-    + '&lon=' + encodeURIComponent(city.lon)
-    + '&units=metric'
-    + '&appid=' + encodeURIComponent(apiKey);
 
   const controller = new AbortController();
   const timer = setTimeout(function () { controller.abort(); }, TIMEOUT_MS);
 
   try {
-    const upstream = await fetch(url, { signal: controller.signal });
+    /* 1. name -> coordinates */
+    const matches = await getJSON(
+      GEO_URL + '?q=' + encodeURIComponent(city) + '&limit=1&appid=' + encodeURIComponent(apiKey),
+      controller.signal
+    );
 
-    if (!upstream.ok) {
-      const detail = await upstream.text().catch(function () { return ''; });
-      console.error('OpenWeatherMap responded ' + upstream.status + ': ' + detail);
-      const message = upstream.status === 401
-        ? 'Weather service rejected the API key.'
-        : 'Could not fetch weather right now. Please try again.';
-      return res.status(502).json({ success: false, message });
+    if (!Array.isArray(matches) || matches.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'We could not find “' + city + '”. Check the spelling and try again.',
+      });
     }
 
-    const owm = await upstream.json();
+    const place = matches[0];
+    if (typeof place.lat !== 'number' || typeof place.lon !== 'number') {
+      console.error('Geocoding returned no usable coordinates:', JSON.stringify(place));
+      return res.status(502).json({ success: false, message: 'Could not locate that city. Please try again.' });
+    }
+
+    /* 2. coordinates -> current weather */
+    const owm = await getJSON(
+      OWM_URL + '?lat=' + encodeURIComponent(place.lat) + '&lon=' + encodeURIComponent(place.lon)
+        + '&units=metric&appid=' + encodeURIComponent(apiKey),
+      controller.signal
+    );
+
     const current = (owm.weather && owm.weather[0]) || {};
 
     /* No usable temperature means we cannot classify the weather. Better to
@@ -79,9 +104,10 @@ module.exports = async (req, res) => {
       success: true,
       message: 'Weather fetched',
       data: {
-        slug: slug,
-        city: city.name,
-        state: city.state,
+        query: city,
+        city: place.name || city,
+        state: place.state || place.country || '',
+        country: place.country || '',
         tempC: Math.round(owm.main.temp),
         condition: current.main || 'Unknown',
         description: current.description || '',
@@ -92,6 +118,13 @@ module.exports = async (req, res) => {
     if (err && err.name === 'AbortError') {
       console.error('OpenWeatherMap request timed out after ' + TIMEOUT_MS + 'ms');
       return res.status(504).json({ success: false, message: 'Weather service timed out. Please try again.' });
+    }
+    if (err && err.status) {
+      console.error('OpenWeatherMap responded ' + err.status + ': ' + err.detail);
+      const message = err.status === 401
+        ? 'Weather service rejected the API key.'
+        : 'Could not fetch weather right now. Please try again.';
+      return res.status(502).json({ success: false, message: message });
     }
     console.error('Unexpected error:', err);
     return res.status(500).json({ success: false, message: 'Something went wrong. Please try again.' });

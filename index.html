@@ -4,67 +4,110 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Chaupal Cafe — Weather Based Suggestions</title>
-  <meta name="description" content="Pick a city and the menu reorders itself to suit the weather — cold drinks when it is hot, chai and pakora when it rains." />
+  <meta name="description" content="Search any city and the menu reorders itself to suit the weather — cold drinks when it is hot, chai and pakora when it rains." />
+  <meta name="theme-color" content="#111827" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" />
   <link rel="stylesheet" href="/assets/css/main.css" />
 </head>
 <body>
 
   <header class="head">
     <div class="wrap head__in">
-      <p class="head__brand">Chaupal Cafe</p>
-      <p class="head__tag">Served to suit the sky</p>
+      <a class="brand" href="/">
+        <span class="brand__mark" aria-hidden="true">C</span>
+        <span class="brand__text">
+          <span class="brand__name">Chaupal Cafe</span>
+          <span class="brand__tag">Served to suit the sky</span>
+        </span>
+      </a>
+      <p class="head__meta">Open today · 8:00 – 23:00</p>
     </div>
   </header>
 
-  <main class="wrap main">
+  <main>
 
-    <!-- 1. Location selector -->
-    <section class="picker" aria-labelledby="pickerTitle">
-      <h1 class="picker__title" id="pickerTitle">Weather Based Suggestions</h1>
-      <p class="picker__lede">Choose your location — we check the current weather and put the right things first.</p>
-      <label class="picker__field" for="citySelect">
-        <span class="picker__label">State &amp; City</span>
-        <select id="citySelect" class="select">
-          <option value="">Select a city…</option>
-        </select>
-      </label>
+    <!-- 1. Location search -->
+    <section class="hero">
+      <div class="wrap hero__in">
+        <p class="eyebrow">Live weather menu</p>
+        <h1 class="hero__title">What suits the weather today?</h1>
+        <p class="hero__lede">Search your city. We check the current weather and put the right things first.</p>
+
+        <form class="search" id="cityForm" role="search">
+          <label class="search__label" for="cityInput">City</label>
+          <div class="search__row">
+            <span class="search__icon" aria-hidden="true">⌕</span>
+            <input
+              class="search__input"
+              id="cityInput"
+              name="city"
+              type="text"
+              list="cityList"
+              placeholder="Enter any city — Ludhiana, Pune, Hyderabad…"
+              autocomplete="off"
+              spellcheck="false"
+              maxlength="60"
+              required
+            />
+            <button class="btn btn--primary" type="submit" id="cityGo">Check weather</button>
+          </div>
+          <datalist id="cityList"></datalist>
+          <p class="search__hint" id="cityHint">Try any city in the world.</p>
+        </form>
+
+        <div class="chips" id="cityChips" aria-label="Popular cities"></div>
+      </div>
     </section>
 
-    <!-- 2. Weather card -->
-    <section class="weather" id="weatherCard" aria-live="polite">
-      <p class="weather__icon" id="wcIcon">📍</p>
-      <div class="weather__body">
-        <p class="weather__city" id="wcCity">No city selected</p>
-        <p class="weather__temp" id="wcTemp">—</p>
-        <p class="weather__cond" id="wcCond">Pick a city to see the weather</p>
-      </div>
-      <div class="weather__side">
-        <p class="weather__note" id="wcNote">Choose a location above for weather based suggestions.</p>
-        <button type="button" class="btn btn--ghost" id="wcRetry" hidden>Try again</button>
-      </div>
-    </section>
+    <div class="wrap">
 
-    <!-- 3. Recommended for this weather -->
-    <section class="sec" id="recSection" hidden>
-      <div class="sec__head">
-        <h2 class="sec__title" id="recTitle">Recommended for this Weather</h2>
-        <p class="deal" id="recDeal" hidden></p>
-      </div>
-      <div class="grid" id="recGrid"></div>
-    </section>
+      <!-- 2. Weather card -->
+      <section class="weather" id="weatherCard" aria-live="polite">
+        <div class="weather__main">
+          <p class="weather__icon" id="wcIcon">📍</p>
+          <div>
+            <p class="weather__city" id="wcCity">No city selected</p>
+            <p class="weather__temp" id="wcTemp">—</p>
+            <p class="weather__cond" id="wcCond">Search a city to see the weather</p>
+          </div>
+        </div>
+        <div class="weather__side">
+          <p class="weather__note" id="wcNote">Enter a location above for weather based suggestions.</p>
+          <button type="button" class="btn btn--ghost" id="wcRetry" hidden>Try again</button>
+        </div>
+      </section>
 
-    <!-- 4. Everything else -->
-    <section class="sec">
-      <div class="sec__head">
-        <h2 class="sec__title" id="allTitle">All Products</h2>
-      </div>
-      <div class="grid" id="allGrid"></div>
-    </section>
+      <!-- 3. Recommended for this weather -->
+      <section class="sec" id="recSection" hidden>
+        <div class="sec__head">
+          <div>
+            <p class="eyebrow">Picked for right now</p>
+            <h2 class="sec__title" id="recTitle">Recommended for this Weather</h2>
+          </div>
+          <p class="deal" id="recDeal" hidden></p>
+        </div>
+        <div class="grid" id="recGrid"></div>
+      </section>
 
+      <!-- 4. Everything else -->
+      <section class="sec">
+        <div class="sec__head">
+          <div>
+            <p class="eyebrow">Full menu</p>
+            <h2 class="sec__title" id="allTitle">All Products</h2>
+          </div>
+        </div>
+        <div class="grid" id="allGrid"></div>
+      </section>
+
+    </div>
   </main>
 
   <footer class="foot">
-    <div class="wrap">
+    <div class="wrap foot__in">
+      <p class="foot__brand">Chaupal Cafe</p>
       <p>Weather by OpenWeatherMap. Discounts shown are a demo business rule, not a live offer.</p>
     </div>
   </footer>

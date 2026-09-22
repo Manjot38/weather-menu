@@ -30,15 +30,11 @@ window.WM_DATA = {
     "dealPercent": 10
   },
 
-  "cities": [
-    { "slug": "ludhiana",   "name": "Ludhiana",   "state": "Punjab" },
-    { "slug": "amritsar",   "name": "Amritsar",   "state": "Punjab" },
-    { "slug": "chandigarh", "name": "Chandigarh", "state": "Chandigarh" },
-    { "slug": "delhi",      "name": "Delhi",      "state": "Delhi" },
-    { "slug": "mumbai",     "name": "Mumbai",     "state": "Maharashtra" },
-    { "slug": "bengaluru",  "name": "Bengaluru",  "state": "Karnataka" },
-    { "slug": "jaipur",     "name": "Jaipur",     "state": "Rajasthan" },
-    { "slug": "shimla",     "name": "Shimla",     "state": "Himachal Pradesh" }
+  /* Convenience only — any city can be typed into the search box. These fill
+     the autocomplete list and the quick pick chips. */
+  "suggestions": [
+    "Ludhiana", "Delhi", "Mumbai", "Bengaluru", "Amritsar", "Chandigarh",
+    "Pune", "Hyderabad", "Chennai", "Kolkata", "Jaipur", "Shimla"
   ],
 
   "categories": [

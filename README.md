@@ -1,6 +1,6 @@
 # Weather Menu — weather based food suggestions
 
-Pick a city, the page fetches its current weather from OpenWeatherMap, and the menu
+Search any city, the page fetches its current weather from OpenWeatherMap, and the menu
 reorders itself: cold drinks and ice cream when it is hot, chai and pakora when it rains.
 
 Plain HTML, CSS and vanilla JS — no framework, no build step, no `node_modules` for the
@@ -49,11 +49,27 @@ curl "http://localhost:3000/api/weather?city=ludhiana"
 
 | File | What it does |
 | --- | --- |
-| `index.html` | Page shell: location selector → weather card → recommended grid → all products |
-| `assets/js/data.js` | `window.WM_DATA` — cities, categories, the 22 menu items, and the five weather rules |
-| `assets/js/app.js` | Populates the selector, fetches weather, picks a rule, ranks and renders |
+| `index.html` | Page shell: city search → weather card → recommended grid → all products |
+| `assets/js/data.js` | `window.WM_DATA` — suggestions, categories, the 22 menu items, and the five weather rules |
+| `assets/js/app.js` | Handles the search, fetches weather, picks a rule, ranks and renders |
 | `assets/css/main.css` | Design tokens, weather card, product card grid, loading/error states |
-| `api/weather.js` | `GET /api/weather?city=<slug>` — server side OpenWeatherMap proxy |
+| `api/weather.js` | `GET /api/weather?city=<name>` — server side OpenWeatherMap proxy |
+
+## City lookup
+
+Any city can be typed into the search box — there is no fixed city list. The name is sent
+to `/api/weather`, which resolves it with OpenWeatherMap's **Geocoding API**
+(`/geo/1.0/direct`) and then fetches the current weather for the coordinates that come
+back. Two upstream calls per lookup, both server side.
+
+`WM_DATA.suggestions` in `assets/js/data.js` is convenience only — it fills the
+autocomplete list and the quick pick chips. Editing it does not restrict what can be
+searched.
+
+Input is validated before the key is used: 2–60 characters, and letters, marks, spaces and
+`' . , ( ) -` only, so names like `Malmö`, `N'Djamena` and `Vitry-sur-Seine` work while
+anything script-, URL- or path-shaped is rejected with a 400. A name that resolves to
+nothing gives a 404 and the page says it could not find that city.
 
 ## The rules
 
@@ -75,15 +91,12 @@ The discount is a **demo business rule** — it is applied at render time only. 
 To change the menu, edit the `products` array in `assets/js/data.js`; every item's
 `category` must be one of the slugs in `categories`.
 
-To add a city, add it to `WM_DATA.cities` **and** to the `CITIES` map in `api/weather.js`
-(which holds the coordinates). The endpoint only accepts slugs it knows, so an unlisted
-slug returns a 400 rather than spending API quota on arbitrary coordinates.
-
 ## Behaviour when the weather fails
 
 By design the product list never depends on the API. On any failure — no key, bad key,
 unknown city, timeout, offline — the weather card shows the reason with a **Try again**
 button and the full menu renders in its normal order.
 
-Successful lookups are cached in `sessionStorage` for 10 minutes per city, so switching
-back and forth is instant and stays well inside the free API tier.
+Successful lookups are cached in `sessionStorage` for 10 minutes per city, so repeat
+searches are instant and stay well inside the free API tier. The last search is kept in
+`localStorage` so a reload restores it.

@@ -2,8 +2,12 @@
    WEATHER MENU — app
    --------------------------------------------------------------------------
    Reads window.WM_DATA (assets/js/data.js), fetches the weather for the
-   selected city from /api/weather, then renders the menu with the weather
+   searched city from /api/weather, then renders the menu with the weather
    appropriate items first.
+
+   Any city name can be typed — WM_DATA.suggestions only fills the
+   autocomplete list and the quick pick chips. The city is resolved to
+   coordinates server side, so no city list is maintained here.
 
    If the weather cannot be fetched for any reason the full menu still
    renders in its normal order — the product list never depends on the API.
@@ -29,7 +33,11 @@
   };
 
   var el = {
-    city: document.getElementById('citySelect'),
+    form: document.getElementById('cityForm'),
+    input: document.getElementById('cityInput'),
+    go: document.getElementById('cityGo'),
+    list: document.getElementById('cityList'),
+    chips: document.getElementById('cityChips'),
     card: document.getElementById('weatherCard'),
     icon: document.getElementById('wcIcon'),
     place: document.getElementById('wcCity'),
@@ -110,21 +118,28 @@
     opts = opts || {};
     var onDeal = opts.dealCategory === item.category;
     var price = onDeal
-      ? '<span class="card__was">' + CUR + item.price + '</span> '
+      ? '<span class="card__was">' + CUR + item.price + '</span>'
         + '<span class="card__now">' + CUR + dealPrice(item.price) + '</span>'
       : '<span class="card__now">' + CUR + item.price + '</span>';
 
     return ''
       + '<article class="card' + (item.inStock ? '' : ' card--out') + '" data-slug="' + esc(item.slug) + '">'
-      +   '<div class="card__media" aria-hidden="true">' + item.emoji + '</div>'
+      +   '<div class="card__media">'
+      +     '<span class="card__emoji" aria-hidden="true">' + item.emoji + '</span>'
+      +     '<div class="card__tags">'
+      +       (onDeal ? '<span class="card__deal">' + esc(String(DEAL_PCT)) + '% OFF</span>' : '')
+      +       (item.badge ? '<span class="card__badge">' + esc(item.badge) + '</span>' : '')
+      +     '</div>'
+      +   '</div>'
       +   '<div class="card__body">'
       +     '<p class="card__cat">' + esc(catName(item.category)) + '</p>'
       +     '<h3 class="card__name">' + esc(item.name) + '</h3>'
       +     '<p class="card__sub">' + esc(item.subtitle) + '</p>'
-      +     '<p class="card__price">' + price + '</p>'
+      +     '<div class="card__foot">'
+      +       '<p class="card__price">' + price + '</p>'
+      +       '<span class="card__add" aria-hidden="true">+</span>'
+      +     '</div>'
       +   '</div>'
-      +   (onDeal ? '<p class="card__deal">' + esc(String(DEAL_PCT)) + '% OFF</p>' : '')
-      +   (item.badge ? '<p class="card__badge">' + esc(item.badge) + '</p>' : '')
       + '</article>';
   }
 
@@ -134,7 +149,7 @@
 
   /* ------------------------------------------------------------- rendering */
 
-  /* No weather (not chosen yet, or the fetch failed): the whole menu, as is. */
+  /* No weather (nothing searched yet, or the fetch failed): the whole menu. */
   function renderPlainMenu() {
     el.recSection.hidden = true;
     el.allTitle.textContent = 'All Products';
@@ -177,7 +192,7 @@
   function showWeather(w) {
     setCardState('ok');
     el.icon.textContent = ICONS[w.condition] || '🌡️';
-    el.place.textContent = w.city + ', ' + w.state;
+    el.place.textContent = w.state ? w.city + ', ' + w.state : w.city;
     el.temp.textContent = w.tempC + '°C';
     el.cond.textContent = w.description
       ? w.description.charAt(0).toUpperCase() + w.description.slice(1)
@@ -197,17 +212,21 @@
     el.icon.textContent = '📍';
     el.place.textContent = 'No city selected';
     el.temp.textContent = '—';
-    el.cond.textContent = 'Pick a city to see the weather';
-    el.note.textContent = 'Choose a location above for weather based suggestions.';
+    el.cond.textContent = 'Search a city to see the weather';
+    el.note.textContent = 'Enter a location above for weather based suggestions.';
   }
 
   /* ------------------------------------------------------------- data flow */
 
-  /* Short lived cache so switching back and forth is instant and we stay
-     well inside the free API tier. */
-  function cached(slug) {
+  /* Short lived cache so repeat searches are instant and we stay well inside
+     the free API tier. Keyed on the normalised query. */
+  function key(city) {
+    return 'wm:weather:' + city.toLowerCase();
+  }
+
+  function cached(city) {
     try {
-      var raw = sessionStorage.getItem('wm:weather:' + slug);
+      var raw = sessionStorage.getItem(key(city));
       if (!raw) return null;
       var hit = JSON.parse(raw);
       if (Date.now() - hit.at > CACHE_MS) return null;
@@ -215,39 +234,45 @@
     } catch (e) { return null; }
   }
 
-  function cache(slug, data) {
+  function cache(city, data) {
     try {
-      sessionStorage.setItem('wm:weather:' + slug, JSON.stringify({ at: Date.now(), data: data }));
+      sessionStorage.setItem(key(city), JSON.stringify({ at: Date.now(), data: data }));
     } catch (e) { /* private mode / full quota — caching is optional */ }
   }
 
-  function cityName(slug) {
-    for (var i = 0; i < D.cities.length; i++) {
-      if (D.cities[i].slug === slug) return D.cities[i].name;
-    }
-    return slug;
+  function clean(raw) {
+    return String(raw || '').replace(/\s+/g, ' ').trim();
   }
 
-  function load(slug) {
-    if (!slug) {
+  function load(raw) {
+    var city = clean(raw);
+
+    if (!city) {
       showPrompt();
       renderPlainMenu();
       return;
     }
+    if (city.length < 2) {
+      showError('Enter at least two letters.');
+      el.place.textContent = city;
+      renderPlainMenu();
+      return;
+    }
 
-    try { localStorage.setItem(LAST_CITY_KEY, slug); } catch (e) { /* optional */ }
+    try { localStorage.setItem(LAST_CITY_KEY, city); } catch (e) { /* optional */ }
 
-    var hit = cached(slug);
+    var hit = cached(city);
     if (hit) {
       showWeather(hit);
       renderForWeather(hit);
       return;
     }
 
-    showLoading(cityName(slug));
-    el.city.disabled = true;
+    showLoading(city);
+    el.input.disabled = true;
+    el.go.disabled = true;
 
-    fetch('/api/weather?city=' + encodeURIComponent(slug))
+    fetch('/api/weather?city=' + encodeURIComponent(city))
       .then(function (res) {
         /* A non-JSON body means the route is missing or a proxy got in the
            way — never show the raw parse error, it means nothing to anyone. */
@@ -265,55 +290,58 @@
         if (!r.ok || !r.body.success || !r.body.data) {
           throw new Error(r.body.message || 'Could not fetch weather right now.');
         }
-        cache(slug, r.body.data);
+        cache(city, r.body.data);
         showWeather(r.body.data);
         renderForWeather(r.body.data);
       })
       .catch(function (err) {
         console.error('Weather fetch failed:', err);
-        el.place.textContent = cityName(slug);
+        el.place.textContent = city;
         showError(err && err.message ? err.message : 'Weather unavailable.');
         renderPlainMenu();
       })
       .finally(function () {
-        el.city.disabled = false;
+        el.input.disabled = false;
+        el.go.disabled = false;
       });
   }
 
   /* ------------------------------------------------------------------ init */
 
-  function populateCities() {
-    var groups = {};
-    var order = [];
+  function populateSuggestions() {
+    var names = D.suggestions || [];
 
-    D.cities.forEach(function (c) {
-      if (!groups[c.state]) { groups[c.state] = []; order.push(c.state); }
-      groups[c.state].push(c);
+    el.list.innerHTML = names.map(function (n) {
+      return '<option value="' + esc(n) + '"></option>';
+    }).join('');
+
+    el.chips.innerHTML = names.slice(0, 6).map(function (n) {
+      return '<button type="button" class="chip" data-city="' + esc(n) + '">' + esc(n) + '</button>';
+    }).join('');
+
+    el.chips.addEventListener('click', function (e) {
+      var chip = e.target.closest('.chip');
+      if (!chip) return;
+      el.input.value = chip.getAttribute('data-city');
+      load(el.input.value);
     });
-
-    var html = '<option value="">Select a city…</option>';
-    order.forEach(function (state) {
-      html += '<optgroup label="' + esc(state) + '">';
-      groups[state].forEach(function (c) {
-        html += '<option value="' + esc(c.slug) + '">' + esc(c.name) + '</option>';
-      });
-      html += '</optgroup>';
-    });
-
-    el.city.innerHTML = html;
   }
 
-  populateCities();
+  populateSuggestions();
   renderPlainMenu();
 
-  el.city.addEventListener('change', function () { load(el.city.value); });
-  el.retry.addEventListener('click', function () { load(el.city.value); });
+  el.form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    load(el.input.value);
+  });
+
+  el.retry.addEventListener('click', function () { load(el.input.value); });
 
   var last = null;
   try { last = localStorage.getItem(LAST_CITY_KEY); } catch (e) { /* optional */ }
 
-  if (last && cityName(last) !== last) {
-    el.city.value = last;
+  if (last) {
+    el.input.value = last;
     load(last);
   } else {
     showPrompt();
